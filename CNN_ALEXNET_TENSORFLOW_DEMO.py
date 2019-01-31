@@ -36,6 +36,7 @@ __mtime__ = 'None'
 """
 
 import tensorflow as tf
+import os
 
 #TensorFlow里要求输入数据的shape为[图片数量，图片高度，图片宽度，图片通道]
 images = tf.Variable(tf.random_normal([128, 227, 227, 3],
@@ -53,6 +54,7 @@ with tf.name_scope('conv1') as scope:
                          trainable=True, name='biases')
     bias = tf.nn.bias_add(conv,biases)
     conv1 = tf.nn.relu(bias,name=scope)
+    print_activations(conv1)
 
 
 with tf.name_scope('lrn') as scope:
@@ -94,11 +96,71 @@ with tf.name_scope('pool2') as scope:
                            ksize=[1, 3, 3, 1],
                            strides=[1, 2, 2, 1],
                            padding='VALID')
-    print_activations(pool2)
+    # print_activations(pool2)
+    # pool2/MaxPool   [128, 13, 13, 256]
 
-with tf.name_scope
+with tf.name_scope('conv3') as scope:
+    kernel = tf.Variable(tf.truncated_normal([3, 3, 256, 384],dtype=tf.float32,stddev=0.01),
+                         name='weights')
+    conv = tf.nn.conv2d(input=pool2, filter=kernel, strides= [1, 1, 1, 1],padding='SAME')
+    biases = tf.Variable(tf.constant(0.0, shape=[384], dtype=tf.float32), trainable=True, name='biases')
+    bias = tf.nn.bias_add(conv,biases)
+    conv3 = tf.nn.relu(bias,name=scope)
+    print_activations(conv3)
+    # conv3   [128, 13, 13, 384]
 
-# with tf.Session() as sess:
-#     sess.run(tf.global_variables_initializer())
-#     cnn_result = sess.run(pool1)
-#     print(cnn_result.shape)
+with tf.name_scope('lrn3') as scope:
+    lrn3 = tf.nn.local_response_normalization(conv3,
+                                              alpha=1e-4,
+                                              beta=0.75,
+                                              depth_radius=2,
+                                              bias=2.0)
+
+with tf.name_scope('conv4') as scope:
+    kernel = tf.Variable(tf.truncated_normal([3, 3, 384, 384],dtype=tf.float32,stddev=0.01),
+                         name='weights')
+    conv = tf.nn.conv2d(input=lrn3, filter=kernel, strides=[1, 1, 1, 1], padding='SAME')
+    biases = tf.Variable(tf.constant(0.0, shape=[384], dtype=tf.float32),
+                         trainable=True, name='biases')
+    bias = tf.nn.bias_add(conv,biases)
+    conv4 = tf.nn.relu(bias,name=scope)
+    print_activations(conv4)
+    # conv3[128, 13, 13, 384]
+
+with tf.name_scope('lrn4') as scope:
+    lrn4 = tf.nn.local_response_normalization(conv4,
+                                              alpha=1e-4,
+                                              beta=0.75,
+                                              depth_radius=2,
+                                              bias=2.0)
+
+with tf.name_scope('conv5') as scope:
+    kernel = tf.Variable(tf.truncated_normal([3, 3, 384, 256], dtype=tf.float32, stddev=0.01),
+                         name='weights')
+    conv = tf.nn.conv2d(input=lrn4, filter=kernel, strides=[1, 1, 1, 1], padding='SAME')
+    biases = tf.Variable(tf.constant(0.0, shape=[256], dtype=tf.float32),
+                              trainable=True, name='biases')
+    bias = tf.nn.bias_add(conv, biases)
+    conv5 = tf.nn.relu(bias, name=scope)
+    print_activations(conv5)
+
+with tf.name_scope('pool5') as scope:
+    pool5 = tf.nn.max_pool(conv5, ksize=[1, 3, 3, 1],
+                           strides=[1, 2, 2, 1],
+                           padding='VALID',
+                           name='pool5')
+
+
+if __name__ == '__main__':
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'   # 使用第0块GPU
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5  # 程序最多只能占用指定gpu50%的显存
+    config.gpu_options.allow_growth = True  # 程序按需申请内存
+    config.gpu_options.allocator_type = 'BFC'  # 使用BFC算法
+
+
+    with tf.Session(config=config) as sess:
+        sess.run(tf.global_variables_initializer())
+        cnn_result = sess.run(conv5)
+        print(cnn_result.shape)
