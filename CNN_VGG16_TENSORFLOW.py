@@ -155,9 +155,11 @@ def train_vgg16():
     with tf.Graph().as_default():
         image_size = 224  # 输入图像尺寸
         # 生成随机数测试是否能跑通
-        #images = tf.Variable(tf.random_normal([batch_size, image_size, image_size, 3], dtype=tf.float32, stddev=1e-1))
+        # images = tf.Variable(tf.random_normal([batch_size, image_size, image_size, 3], dtype=tf.float32, stddev=1e-1))
         with tf.device('/cpu:0'):
             images, labels = cifar10.distorted_inputs()
+        print(images.shape)
+        print(labels)
         keep_prob = tf.placeholder(tf.float32)
         prediction,softmax,fc8,p = inference_op(images,keep_prob)
         init = tf.global_variables_initializer()
